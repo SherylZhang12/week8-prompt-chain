@@ -1,4 +1,4 @@
-export type Step = { id: string; name: string; instruction: string; model: string; position: number };
+export type Step = { id: string; name: string; instruction: string; model: string; position: number; temperature: number; max_output_tokens: number };
 export type Trace = { name: string; model: string; duration: number; text: string };
 
 export async function runChain(
