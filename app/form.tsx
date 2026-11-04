@@ -15,7 +15,7 @@ export function Form({action,children,label,busy='Saving…',kind,disabled,keepF
   } : undefined}>
     {children}
     <button type="submit" className={kind} disabled={disabled||pending}>{pending?busy:label}</button>
-    {state.error && <p className="error" role="alert">{state.error}</p>}
-    {state.message && <p className="success" role="status">{state.message}</p>}
+    {!pending && state.error && <p className="error" role="alert">{state.error}</p>}
+    {!pending && state.message && <p className="success" role="status">{state.message}</p>}
   </form>;
 }
