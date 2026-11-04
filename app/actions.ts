@@ -80,10 +80,11 @@ export async function run(_:Result,form:FormData):Promise<Result> {
   ]);
   if (terms.error || examples.error) return {error:'Could not load Foodfolio prompt context.'};
   const input = {food:dish,dish,context,persona:chain.persona,reaction,language:'English'};
+  const deadline = Date.now() + 145000;
   const result = await runChain(steps.map(({llm_models,...step})=>({...step,model:llm_models.model_id})), '', image, (step,previous,attachment) => generate(step,JSON.stringify({
     ...input, chain_name:chain.name,step:step.position,previous_draft:previous||undefined,
     glossary:terms.data,examples:examples.data,
-  }),attachment));
+  }),attachment,deadline));
   const {error:saveError} = await client.from('prompt_chain_previews').insert({chain_id:id,revision:chain.revision,...result});
   if (saveError) return {error:'The run finished but could not be saved. Check that the chain still exists.'};
   revalidatePath('/');

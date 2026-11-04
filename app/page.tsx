@@ -136,7 +136,7 @@ export default async function Lab({searchParams}:{searchParams:Promise<{chain?:s
         <section className="card">
           <p className="kicker">02 · GENERATE</p><h2>Run this chain</h2>
           <p>Preview the Kitchen caption workflow for this character. Previews are saved below without publishing a post.</p>
-          <Form action={run} label="Generate media" busy="Running chain… This can take a moment." disabled={!ordered.length}>
+          <Form action={run} keepFields label="Generate media" busy="Running chain… This can take a moment." disabled={!ordered.length}>
             <Context chain={active}/>
             <label>Dish name<input name="dish" maxLength={80} required/></label>
             <label>Reaction<select name="reaction"><option value="Roast">Roast me</option><option value="Hype">Hype me</option><option value="Roast then hype">Roast then praise</option></select></label>
