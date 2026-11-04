@@ -20,7 +20,7 @@ async function login() {
 export default async function Login({searchParams}:{searchParams:Promise<{denied?:string;error?:string}>}) {
   const {denied,error} = await searchParams;
   return <main className="login card">
-    <p className="kicker">WEEK 08 · SUPERADMIN WORKSPACE</p>
+    <p className="kicker">SUPERADMIN WORKSPACE</p>
     <h1>Prompt Chain Lab<span>.</span></h1>
     <p>Edit and preview the food-photo caption chains used by Foodfolio Kitchen.</p>
     {denied && <p className="error" role="alert">This Google account does not have Foodfolio superadmin access.</p>}
