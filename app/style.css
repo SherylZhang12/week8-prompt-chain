@@ -77,3 +77,10 @@ summary {color:var(--accent);cursor:pointer;font-weight:700}
   .top {align-items:flex-start}
   .top-tools {justify-content:flex-end}
 }
+/* Workflow previews reuse the Lab's existing theme colors. */
+fieldset { border:1px solid var(--line); border-radius:12px; padding:1rem; margin:1rem 0; min-width:0; }
+legend { font-weight:700; padding:0 .4rem; }
+.check-label { display:flex; align-items:flex-start; gap:.65rem; font-weight:400; }
+.check-label input[type=checkbox] { width:auto; flex:0 0 auto; margin-top:.3rem; }
+.workflow-result h4 { margin:1.25rem 0 .5rem; }
+.workflow-result p { overflow-wrap:anywhere; }

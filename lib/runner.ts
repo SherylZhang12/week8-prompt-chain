@@ -1,5 +1,5 @@
 export type Step = { id: string; name: string; instruction: string; model: string; position: number; temperature: number; max_output_tokens: number };
-export type Trace = { name: string; model: string; duration: number; text: string };
+export type Trace = { instruction?:string; name: string; model: string; duration: number; text: string };
 
 export async function runChain(
   steps: Step[],
@@ -14,7 +14,7 @@ export async function runChain(
     try {
       previous = (await generate(step, previous, trace.length === 0 ? image : null)).trim();
       if (!previous || previous.length > 16000) throw new Error('No usable text was returned.');
-      trace.push({name: step.name, model: step.model, duration: Date.now() - start, text: previous});
+      trace.push({instruction:step.instruction,name: step.name, model: step.model, duration: Date.now() - start, text: previous});
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Generation failed.';
       return {status: 'failed', output: `Step ${step.position} · ${step.name}: ${message}`, trace};

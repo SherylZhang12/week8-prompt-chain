@@ -29,12 +29,14 @@ export async function edit(_:Result, form:FormData):Promise<Result> {
   if (['create','save_chain','add_step','save_step'].includes(op) && (!name || name.length>100)) return {error:'Enter a name up to 100 characters.'};
   if (description.length>1000) return {error:'Description is limited to 1,000 characters.'};
   const persona = field(form,'persona');
-  if (['create','save_chain'].includes(op) && !['Gordon Ramsay','Cat','Dog'].includes(persona)) return {error:'Select a Foodfolio character.'};
+  const module = field(form,'module') || 'caption';
+  if (!['caption','meal-coach','group-order'].includes(module)) return {error:'Select a valid product module.'};
+  if (['create','save_chain'].includes(op) && module==='caption' && !['Gordon Ramsay','Cat','Dog'].includes(persona)) return {error:'Select a Foodfolio character.'};
   if (op!=='create' && (!uuid.test(id) || !Number.isInteger(revision) || revision<1)) return {error:'Select a valid chain.'};
   if (op.startsWith('delete_') && field(form,'confirm')!=='DELETE') return {error:'Type DELETE to confirm.'};
   if (['save_step','move_step','delete_step'].includes(op) && !uuid.test(step)) return {error:'Select a valid step.'};
   if (['add_step','save_step'].includes(op) && (!instruction || instruction.length>2000 || !uuid.test(model))) return {error:'Enter an instruction up to 2,000 characters and select a model.'};
-  const {data,error} = await client.rpc('foodfolio_edit_chain',{p_chain:id||null,p_revision:revision,p_operation:op,p_values:{name,description,persona,step:step||null,instruction,model,position}});
+  const {data,error} = await client.rpc('foodfolio_edit_chain',{p_chain:id||null,p_revision:revision,p_operation:op,p_values:{name,description,persona,module,step:step||null,instruction,model,position}});
   if (error) return {error:error.code==='23514'?error.message:error.code==='23505'?'A chain with this name already exists.':error.code==='40001'?'This chain changed. Refresh and retry.':'Could not save this change. Check the fields and try again.'};
   revalidatePath('/');
   if (op==='create') redirect('/?chain='+data);
@@ -84,7 +86,7 @@ export async function run(_:Result,form:FormData):Promise<Result> {
   const result = await runChain(steps.map(({llm_models,...step})=>({...step,model:llm_models.model_id})), '', image, (step,previous,attachment) => generate(step,JSON.stringify({
     ...input, chain_name:chain.name,step:step.position,previous_draft:previous||undefined,
     glossary:terms.data,examples:examples.data,
-  }),attachment,deadline));
+  }),attachment,deadline,step.position===steps[steps.length-1].position));
   const {error:saveError} = await client.from('prompt_chain_previews').insert({chain_id:id,revision:chain.revision,...result});
   if (saveError) return {error:'The run finished but could not be saved. Check that the chain still exists.'};
   revalidatePath('/');

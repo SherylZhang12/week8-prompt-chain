@@ -3,29 +3,23 @@ import {requireAdmin} from '@/lib/db';
 import type {Trace} from '@/lib/runner';
 import {edit,logout,run} from './actions';
 import {Form} from './form';
+import {ResultView} from './result-view';
+import {ChainFields,WorkflowFields} from './workflow-fields';
+import {activateWorkflow,runWorkflowPreview} from './workflow-actions';
 
 export const maxDuration = 180;
 
-type Chain = {id:string; name:string; description:string; revision:number; persona:string};
+type Chain = {id:string; name:string; description:string; revision:number; persona:string|null; module:string};
 type Model = {id:string; name:string; supports_images:boolean};
 type Step = {id:string; position:number; name:string; instruction:string; model_id:string};
 
 function Context({chain,operation,step}:{chain:Chain; operation?:string; step?:Step}) {
   return <>
     <input type="hidden" name="chain" value={chain.id}/>
+    <input type="hidden" name="module" value={chain.module}/>
     <input type="hidden" name="revision" value={chain.revision}/>
     {operation && <input type="hidden" name="operation" value={operation}/>}
     {step && <input type="hidden" name="step" value={step.id}/>}
-  </>;
-}
-
-function ChainFields({chain}:{chain?:Chain}) {
-  return <>
-    <label>Chain name<input name="name" required maxLength={100} defaultValue={chain?.name}/></label>
-    <label>Foodfolio character<select name="persona" defaultValue={chain?.persona ?? 'Gordon Ramsay'}>
-      <option>Gordon Ramsay</option><option>Cat</option><option>Dog</option>
-    </select></label>
-    <label>Description<textarea name="description" rows={2} maxLength={1000} defaultValue={chain?.description}/></label>
   </>;
 }
 
@@ -33,7 +27,7 @@ function StepFields({models,step}:{models:Model[]; step?:Step}) {
   return <>
     <label>Step name<input name="name" required maxLength={100} defaultValue={step?.name}/></label>
     <label>Instruction<textarea name="instruction" rows={3} required maxLength={2000} defaultValue={step?.instruction}/></label>
-    <label>Model<select name="model" required defaultValue={step?.model_id ?? models[0]?.id ?? ''}>
+    <label>Model<select name="model" required defaultValue={step?.model_id ?? models.find(model=>model.name.includes('3.5'))?.id ?? models[0]?.id ?? ''}>
       <option value="" disabled>Select a model</option>
       {step && !models.some(model=>model.id===step.model_id) && <option value={step.model_id} disabled>Current model unavailable</option>}
       {models.map(model=><option key={model.id} value={model.id}>{model.name}{model.supports_images?' · vision':''}</option>)}
@@ -55,12 +49,13 @@ function Remove({chain,step}:{chain:Chain; step?:Step}) {
 export default async function Lab({searchParams}:{searchParams:Promise<{chain?:string}>}) {
   const {client} = await requireAdmin();
   const {chain:requested} = await searchParams;
-  const [chains,modelResult] = await Promise.all([
-    client.from('prompt_chains').select('id,name,description,revision:version,persona').order('name'),
+  const [chains,modelResult,routes] = await Promise.all([
+    client.from('prompt_chains').select('id,name,description,revision:version,persona,module').order('name'),
     client.from('llm_models').select('id,name,supports_images,llm_providers!inner(enabled,api_family)')
       .eq('enabled',true).eq('llm_providers.enabled',true).eq('llm_providers.api_family','gemini').order('name'),
+    client.from('prompt_workflow_routes').select('module,chain_id'),
   ]);
-  if (chains.error || modelResult.error) throw new Error('Could not load the workspace.');
+  if (chains.error || modelResult.error || routes.error) throw new Error('Could not load the workspace.');
   const models = modelResult.data;
   const active = chains.data.find(chain=>chain.id===requested) ?? chains.data[0];
   const [steps,runs,live] = active ? await Promise.all([
@@ -74,13 +69,13 @@ export default async function Lab({searchParams}:{searchParams:Promise<{chain?:s
   const liveCaptions = (live?.data ?? []) as {id:string;created_at:string;caption:string}[];
   return <main className="workspace">
     <section className="intro"><div>
-      <p className="kicker">COMMUNITY KITCHEN · WEEK 08</p>
+      <p className="kicker">FOODFOLIO · SUPERADMIN WORKSPACE</p>
       <h1>Prompt Chain Lab<span>.</span></h1>
-      <p>Manage the same caption chains used by Foodfolio Kitchen and Studio. New chains stay out of live traffic until enabled in Studio.</p>
+      <p>Manage the AI workflows behind Food reactions, Daily Meal Coach and Group Ordering. Test every step before choosing a live chain.</p>
     </div><div className="top-tools"><span className="badge">Superadmin access</span><form action={logout}><button className="quiet">Sign out</button></form></div></section>
     <div className="grid">
       <aside className="card chain-sidebar">
-        <h2>Chains</h2>
+        <h2>Food reactions</h2>
         <nav aria-label="Prompt chains">{['Gordon Ramsay','Cat','Dog'].map(persona=><div className="nav-group" key={persona}>
           <h3>{persona}</h3>
           {chains.data.filter(chain=>chain.persona===persona).map(chain=>
@@ -89,6 +84,7 @@ export default async function Lab({searchParams}:{searchParams:Promise<{chain?:s
             </Link>
           )}
         </div>)}</nav>
+        {['meal-coach','group-order'].map(module=><div className="nav-group" key={module}><h2>{module==='meal-coach'?'Daily Meal Coach':'Group Ordering'}</h2><nav aria-label={module+' chains'}>{chains.data.filter(chain=>chain.module===module).map(chain=><Link key={chain.id} href={'/?chain='+chain.id} aria-current={chain.id===active?.id?'page':undefined}>{chain.name}{routes.data.some(route=>route.chain_id===chain.id)?' · Live':''}</Link>)}</nav></div>)}
         <details open={!active}><summary>New chain</summary>
           <Form action={edit} label="Create chain">
             <input type="hidden" name="operation" value="create"/><ChainFields/>
@@ -99,7 +95,8 @@ export default async function Lab({searchParams}:{searchParams:Promise<{chain?:s
       {active ? <div key={active.id} className="stack">
         <section className="card">
           <p className="kicker">CHAIN SETTINGS · REVISION {active.revision}</p>
-          <h2>{active.name}</h2><p>Character · {active.persona}</p>
+          <h2>{active.name}</h2><p>{active.module==='caption'?'Character · '+active.persona:active.module==='meal-coach'?'Daily Meal Coach':'Group Ordering'}</p>
+          {active.module!=='caption' && (routes.data.some(route=>route.chain_id===active.id)?<p className="badge">Live in the public application</p>:<Form action={activateWorkflow} label="Use this chain in the app"><Context chain={active}/><p>Activating this chain replaces the current chain for this module. Further edits to the live chain apply to new requests.</p></Form>)}
           {active.description && <p>{active.description}</p>}
           <details><summary>Edit chain</summary>
             <Form action={edit} label="Save chain"><Context chain={active} operation="save_chain"/><ChainFields key={active.revision} chain={active}/></Form>
@@ -109,10 +106,10 @@ export default async function Lab({searchParams}:{searchParams:Promise<{chain?:s
         <section className="card">
           <p className="kicker">01 · BUILD</p>
           <h2>Ordered steps <small>{ordered.length}/6</small></h2>
-          <p>Step 1 takes your input. Each later step takes the previous step’s output.</p>
+          <p>Step 1 takes the original input and any photos. Later steps receive the original text context and the previous step’s output. The final step returns the module’s complete result.</p>
           {ordered.length===0 && <p>Add a step to get started.</p>}
           <ol className="steps">{ordered.map(step=><li key={step.id}>
-            <h3>{step.name}</h3><p className="preserve">{step.instruction}</p>
+            <h3>{step.name}</h3><small>{step.position===ordered.length?'Final result':'Intermediate working output'}</small><p className="preserve">{step.instruction}</p>
             <div className="row">
               {ordered.length>1 && <Form action={edit} label="Move step" kind="quiet">
                 <Context chain={active} step={step} operation="move_step"/>
@@ -135,13 +132,13 @@ export default async function Lab({searchParams}:{searchParams:Promise<{chain?:s
         </section>
         <section className="card">
           <p className="kicker">02 · GENERATE</p><h2>Run this chain</h2>
-          <p>Preview the Kitchen caption workflow for this character. Previews are saved below without publishing a post.</p>
-          <Form action={run} keepFields label="Generate media" busy="Running chain… This can take a moment." disabled={!ordered.length}>
+          <p>Run this module with test input. Results and intermediate outputs are saved below without publishing a post.</p>
+          <Form action={active.module==='caption'?run:runWorkflowPreview} keepFields label="Generate media" busy="Running chain… This can take a moment." disabled={!ordered.length}>
             <Context chain={active}/>
-            <label>Dish name<input name="dish" maxLength={80} required/></label>
+            {active.module==='caption'?<><label>Dish name<input name="dish" maxLength={80} required/></label>
             <label>Reaction<select name="reaction"><option value="Roast">Roast me</option><option value="Hype">Hype me</option><option value="Roast then hype">Roast then praise</option></select></label>
             <label>Food story<textarea name="input" maxLength={2000} rows={3}/></label>
-            <label>Food photo · JPEG, PNG, WebP · up to 3 MB<input name="photo" type="file" required accept="image/jpeg,image/png,image/webp"/></label>
+            <label>Food photo · JPEG, PNG, WebP · up to 3 MB<input name="photo" type="file" required accept="image/jpeg,image/png,image/webp"/></label></>:<WorkflowFields module={active.module}/>}
           </Form>
         </section>
         <section className="card">
@@ -149,22 +146,23 @@ export default async function Lab({searchParams}:{searchParams:Promise<{chain?:s
           <h3>Lab previews</h3><p>Most recent 25 previews for {active.name}.</p>
           {!history.length && <p>No runs yet. Generate media to see it here.</p>}
           {history.map(item=><article className="run" key={item.id}>
-            <div className="run-meta"><strong>{item.status==='succeeded'?'Foodfolio caption':'Run failed'}</strong>
+            <div className="run-meta"><strong>{item.status==='succeeded'?(active.module==='caption'?'Foodfolio caption':active.module==='meal-coach'?'Meal plan':'Ordering suggestions'):'Run failed'}</strong>
               <time dateTime={item.created_at}>{new Date(item.created_at).toLocaleString('en-US',{timeZone:'America/New_York'})} ET</time>
               <small>Revision {item.revision}</small></div>
-            <p className="preserve">{item.output}</p>
+            <ResultView output={item.output}/>
             {(item.trace as Trace[]).length>0 && <details><summary>View step outputs</summary><ol>
               {(item.trace as Trace[]).map((step,index)=><li key={index}>
-                <strong>{step.name}</strong> <small>{step.model} · {step.duration} ms</small><p className="preserve">{step.text}</p>
+                <strong>{step.name}</strong> <small>{step.model} · {step.duration} ms</small><ResultView output={step.text}/>{step.instruction&&<details><summary>Instruction used for this run</summary><p>{step.instruction}</p></details>}
               </li>)}</ol></details>}
           </article>)}
-          <h3>Kitchen captions</h3>
+          {active.module==='caption'&&<><h3>Kitchen captions</h3>
           <p>Captions generated with this chain in Foodfolio Kitchen.</p>
           {!liveCaptions.length && <p>No Kitchen captions recorded for this chain yet.</p>}
           {liveCaptions.map(item=><article className="run" key={item.id}>
             <time dateTime={item.created_at}>{new Date(item.created_at).toLocaleString('en-US',{timeZone:'America/New_York'})} ET</time>
             <p className="preserve">{item.caption}</p>
-          </article>)}
+          </article>)}</>}
+          {active.module!=='caption'&&<p>Public-app plans remain private to the current request. Lab previews use the same chain and validators; only explicitly submitted Lab test results are saved here.</p>}
         </section>
       </div> : <section className="card"><h2>Create your first chain</h2><p>Add a chain, write a step, and generate media.</p></section>}
     </div>
