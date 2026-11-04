@@ -74,21 +74,27 @@ export default async function Lab({searchParams}:{searchParams:Promise<{chain?:s
   const liveCaptions = (live?.data ?? []) as {id:string;created_at:string;caption:string}[];
   return <main className="workspace">
     <section className="intro"><div>
-      <p className="kicker">WEEK 08 · SUPERADMIN WORKSPACE</p>
-      <h1>Prompt Chain Lab</h1>
+      <p className="kicker">COMMUNITY KITCHEN · WEEK 08</p>
+      <h1>Prompt Chain Lab<span>.</span></h1>
       <p>Manage the same caption chains used by Foodfolio Kitchen and Studio. New chains stay out of live traffic until enabled in Studio.</p>
-    </div><form action={logout}><button className="quiet">Sign out</button></form></section>
+    </div><div className="top-tools"><span className="badge">Superadmin access</span><form action={logout}><button className="quiet">Sign out</button></form></div></section>
     <div className="grid">
-      <aside className="card">
+      <aside className="card chain-sidebar">
         <h2>Chains</h2>
-        <nav aria-label="Prompt chains">{chains.data.map(chain=>
-          <Link key={chain.id} href={'/?chain='+chain.id} aria-current={chain.id===active?.id?'page':undefined}>{chain.name}</Link>
-        )}</nav>
+        <nav aria-label="Prompt chains">{['Gordon Ramsay','Cat','Dog'].map(persona=><div className="nav-group" key={persona}>
+          <h3>{persona}</h3>
+          {chains.data.filter(chain=>chain.persona===persona).map(chain=>
+            <Link key={chain.id} href={'/?chain='+chain.id} aria-current={chain.id===active?.id?'page':undefined}>
+              {chain.name.startsWith(persona+' · ')?chain.name.slice(persona.length+3):chain.name}
+            </Link>
+          )}
+        </div>)}</nav>
         <details open={!active}><summary>New chain</summary>
           <Form action={edit} label="Create chain">
             <input type="hidden" name="operation" value="create"/><ChainFields/>
           </Form>
         </details>
+        <a className="studio-link" href="https://foodfolio-admin.vercel.app/admin/chains">Manage live mix in Studio →</a>
       </aside>
       {active ? <div key={active.id} className="stack">
         <section className="card">
@@ -133,7 +139,7 @@ export default async function Lab({searchParams}:{searchParams:Promise<{chain?:s
           <Form action={run} label="Generate media" busy="Running chain… This can take a moment." disabled={!ordered.length}>
             <Context chain={active}/>
             <label>Dish name<input name="dish" maxLength={80} required/></label>
-            <label>Reaction<select name="reaction"><option>Roast</option><option>Hype</option><option>Roast then hype</option></select></label>
+            <label>Reaction<select name="reaction"><option value="Roast">Roast me</option><option value="Hype">Hype me</option><option value="Roast then hype">Roast then praise</option></select></label>
             <label>Food story<textarea name="input" maxLength={2000} rows={3}/></label>
             <label>Food photo · JPEG, PNG, WebP · up to 3 MB<input name="photo" type="file" required accept="image/jpeg,image/png,image/webp"/></label>
           </Form>

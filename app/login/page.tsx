@@ -21,8 +21,8 @@ export default async function Login({searchParams}:{searchParams:Promise<{denied
   const {denied,error} = await searchParams;
   return <main className="login card">
     <p className="kicker">WEEK 08 · SUPERADMIN WORKSPACE</p>
-    <h1>Prompt Chain Lab</h1>
-    <p>Build ordered prompts, run them on text or a photo, and inspect what each step produces.</p>
+    <h1>Prompt Chain Lab<span>.</span></h1>
+    <p>Edit and preview the food-photo caption chains used by Foodfolio Kitchen.</p>
     {denied && <p className="error" role="alert">This Google account does not have Foodfolio superadmin access.</p>}
     {error && <p className="error" role="alert">Sign-in could not be completed. Please try again.</p>}
     <form action={login}><button>Continue with Google</button></form>
